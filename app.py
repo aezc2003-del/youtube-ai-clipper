@@ -12,6 +12,7 @@ st.markdown('''<style>.stApp {background: #0b1020;} h1 {letter-spacing:-1.5px;}
 div.stButton > button[kind="primary"] {border-radius:12px;}
 .block-container {max-width:1100px;}</style>''', unsafe_allow_html=True)
 st.caption('AUTOCLIP STUDIO  /  YOUR VIDEO → YOUR NEXT SHORT')
+st.caption('Build 1.2 · YouTube JavaScript runtime enabled')
 st.title('Long videos. Short highlights.')
 st.write('Turn your footage into vertical clips for TikTok, Reels and YouTube Shorts.')
 
@@ -89,8 +90,12 @@ if st.button('✦ Generate my clips', type='primary', use_container_width=True):
                     st.session_state.results = {'clips': clips, 'zip': archive.getvalue()}
                 status.update(label=f'Your {len(clips)} clips are ready', state='complete', expanded=False)
         except Exception as exc:
-            st.error(f'Could not finish: {exc}')
-            st.info('For YouTube errors, try uploading the file. For AI model or memory errors, turn AI mode off or use a shorter video.')
+            if '403' in str(exc):
+                st.error('YouTube refused this server’s video download (403 Forbidden). The video could not be retrieved.')
+                st.info('Upload an original video file you have permission to edit. YouTube Premium does not sign this server into your account. Turning AI mode off will not fix a download block.')
+            else:
+                st.error(f'Could not finish: {exc}')
+                st.info('For YouTube errors, try uploading the file. For AI model or memory errors, turn AI mode off or use a shorter video.')
 
 results = st.session_state.get('results')
 if results:
