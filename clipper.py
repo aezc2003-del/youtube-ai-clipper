@@ -69,6 +69,7 @@ def validate_youtube_input(info, *, incomplete=False):
 
 def download(url, folder):
     import yt_dlp
+    import deno
     canonical = youtube_url(url)
     if not canonical:
         raise ValueError('Enter a valid HTTPS YouTube video link.')
@@ -78,6 +79,8 @@ def download(url, folder):
         if sum(downloaded.values()) > MAX_BYTES:
             raise ValueError('Video exceeds the 200 MB limit. Upload a shorter copy.')
     options = {
+        'js_runtimes': {'deno': {'path': deno.find_deno_bin()}},
+        'noprogress': True,
         'format': YOUTUBE_FORMAT,
         'merge_output_format': 'mkv',
         'outtmpl': str(folder / 'source.%(ext)s'), 'noplaylist': True,
