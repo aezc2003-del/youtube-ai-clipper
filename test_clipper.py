@@ -39,3 +39,29 @@ def test_real_video_export(tmp_path):
         assert (stream['width'], stream['height']) == (720, 1280)
         assert 1.8 < float(stream['duration']) < 2.2
         assert any(s['codec_type'] == 'audio' for s in result['streams'])
+
+
+def test_youtube_separate_tracks():
+    import yt_dlp
+    from clipper import YOUTUBE_FORMAT
+    # Modern YouTube can expose only separate video-only and audio-only tracks.
+    info = {'id': 'synthetic', 'title': 'Test', 'extractor': 'test', 'webpage_url': 'https://example.com', 'formats': [
+        {'format_id': 'v720', 'url': 'https://example.com/v.mp4', 'ext': 'mp4', 'height': 720, 'vcodec': 'h264', 'acodec': 'none'},
+        {'format_id': 'v1080', 'url': 'https://example.com/v1080.mp4', 'ext': 'mp4', 'height': 1080, 'vcodec': 'h264', 'acodec': 'none'},
+        {'format_id': 'audio', 'url': 'https://example.com/a.webm', 'ext': 'webm', 'vcodec': 'none', 'acodec': 'opus'},
+    ]}
+    with yt_dlp.YoutubeDL({'format': YOUTUBE_FORMAT, 'quiet': True, 'no_warnings': True}) as y:
+        selected = y.process_ie_result(info, download=False)
+    assert [f['format_id'] for f in selected['requested_formats']] == ['v720', 'audio']
+
+
+def test_youtube_limits_are_explained():
+    import pytest
+    from clipper import validate_youtube_input, MAX_BYTES
+    assert validate_youtube_input({'duration': 1080, 'is_live': False}) is None
+    with pytest.raises(ValueError, match='51.5 minutes'):
+        validate_youtube_input({'duration': 3092})
+    with pytest.raises(ValueError, match='Live streams'):
+        validate_youtube_input({'is_live': True})
+    with pytest.raises(ValueError, match='200 MB'):
+        validate_youtube_input({'requested_formats': [{'filesize': MAX_BYTES}, {'filesize': 1}]})

@@ -10,6 +10,7 @@ import numpy as np
 
 MAX_BYTES = 200 * 1024 * 1024
 MAX_SECONDS = 20 * 60
+YOUTUBE_FORMAT = 'bv*[height<=720]+ba/b[height<=720]'
 
 
 def run(args, cwd=None):
@@ -53,28 +54,45 @@ def youtube_url(value):
     return None
 
 
+def validate_youtube_input(info, *, incomplete=False):
+    if info.get('is_live'):
+        raise ValueError('Live streams are not supported. Use a finished video.')
+    duration = info.get('duration')
+    if duration is not None and duration > MAX_SECONDS:
+        raise ValueError(f'This video is {duration / 60:.1f} minutes long. The app limit is 20 minutes; use a shorter video or trimmed upload.')
+    streams = info.get('requested_formats') or [info]
+    size = sum(s.get('filesize') or s.get('filesize_approx') or 0 for s in streams)
+    if size > MAX_BYTES:
+        raise ValueError('The selected video and audio exceed 200 MB. Upload a smaller copy.')
+    return None
+
+
 def download(url, folder):
     import yt_dlp
     canonical = youtube_url(url)
     if not canonical:
         raise ValueError('Enter a valid HTTPS YouTube video link.')
+    downloaded = {}
     def limit(progress):
-        if progress.get('downloaded_bytes', 0) > MAX_BYTES:
+        downloaded[progress.get('filename', 'source')] = progress.get('downloaded_bytes', 0)
+        if sum(downloaded.values()) > MAX_BYTES:
             raise ValueError('Video exceeds the 200 MB limit. Upload a shorter copy.')
     options = {
-        'format': 'best[height<=720][ext=mp4]/best[height<=720]',
+        'format': YOUTUBE_FORMAT,
+        'merge_output_format': 'mkv',
         'outtmpl': str(folder / 'source.%(ext)s'), 'noplaylist': True,
         'quiet': True, 'max_filesize': MAX_BYTES, 'socket_timeout': 30,
         'retries': 2, 'progress_hooks': [limit],
-        'match_filter': yt_dlp.utils.match_filter_func('duration <= 1200 & !is_live'),
+        'match_filter': validate_youtube_input,
     }
     with yt_dlp.YoutubeDL(options) as ydl:
         ydl.download([canonical])
-    files = [p for p in folder.glob('source.*') if p.suffix not in ('.part', '.ytdl')]
+    files = [p for p in folder.glob('source.*') if p.stem == 'source' and p.suffix in ('.mp4', '.mkv', '.webm', '.mov')]
     if not files:
         raise RuntimeError('YouTube could not provide this video. Upload your video file instead.')
     if files[0].stat().st_size > MAX_BYTES:
         raise ValueError('Video exceeds 200 MB.')
+    probe(files[0])
     return files[0]
 
 
